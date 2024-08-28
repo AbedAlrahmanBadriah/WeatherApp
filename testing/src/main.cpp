@@ -1,8 +1,6 @@
 ﻿
 #define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
-#include <winsock2.h>
-#include <windows.h>
-#include <ws2tcpip.h>
+#include "httplib.h"
 #include "imgui.h"
 #include "imgui_impl_dx9.h"
 #include "imgui_impl_win32.h"
@@ -269,10 +267,12 @@ int main(int, char**)
         ImGui::SetCursorPos(ImVec2(10,470));
         ImGui::Button("Favorite");
 
-
+        std::cout << "hello";
 
 
         ImGui::SetCursorPos(ImVec2(widgetWidth + 20, 470));
+        ImGui::Button("Favorites List");
+
         ImGui::Button("Favorites List");
 
         ImGui::End();
