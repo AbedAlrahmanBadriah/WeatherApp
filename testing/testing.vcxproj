@@ -159,6 +159,10 @@
     <ClInclude Include="vendor\nlohmann\json_fwd.hpp" />
     <ClInclude Include="vendor\nlohmann\ordered_map.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Font Include="vendor\Fonts\MADE TOMMY Black_PERSONAL USE.otf" />
+    <Font Include="vendor\Fonts\Mont-ExtraLightDEMO.otf" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

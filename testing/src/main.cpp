@@ -1,5 +1,4 @@
-﻿
-#define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
+﻿#define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
 #include "httplib.h"
 #include "imgui.h"
 #include "imgui_impl_dx9.h"
@@ -17,8 +16,9 @@
 
 struct WeatherData {
 	std::string cityName;
-	double temperature;
-	double humidity;
+	std::string condition;
+	int temperature;
+	int humidity;
 	double windSpeed;
 	bool isFavorate = FALSE;
 };
@@ -52,8 +52,9 @@ void FetchWeatherData(const std::string& city) {
 
 	cityWeatherInfo.clear();
 
+	//Fetching data
 	httplib::Client client("http://api.openweathermap.org");
-	std::string apiKey = "1b47309fcd7ed75fb6306aa00625578f"; // Replace with your actual OpenWeather API key
+	std::string apiKey = "1b47309fcd7ed75fb6306aa00625578f";
 	std::string url = "/data/2.5/weather?q=" + city + "&appid=" + apiKey + "&units=metric";
 
 	auto res = client.Get(url.c_str());
@@ -63,20 +64,25 @@ void FetchWeatherData(const std::string& city) {
 
 
 		data.cityName = jsonData["name"];
+		data.condition = jsonData["weather"][0]["main"];
 		data.temperature = jsonData["main"]["temp"];
 		data.humidity = jsonData["main"]["humidity"];
 		data.windSpeed = jsonData["wind"]["speed"];
 
 		std::ostringstream oss;
-		// oss << std::fixed << std::setprecision(2);  // Set the precision to 2 decimal places
-
+		//Dividing data to enter the vector
 		oss << data.cityName;
 		cityWeatherInfo.push_back(oss.str());
 		oss.str("");  // Clear the stream content
 		oss.clear();  // Clear any error flags
 
+		oss << data.condition;
+		cityWeatherInfo.push_back(oss.str());
+		oss.str("");
+		oss.clear();
 
-		oss << data.temperature << "C";
+
+		oss << data.temperature << "c";
 		cityWeatherInfo.push_back(oss.str());
 		oss.str("");
 		oss.clear();
@@ -109,7 +115,11 @@ void FetchWeatherData(const std::string& city) {
 void addToFavorates(std::vector<WeatherData>& favorate, const WeatherData& data) {
 	// Check if the weather data is already in the favorites list
 	auto it = std::find_if(favorate.begin(), favorate.end(), [&data](const WeatherData& wd) {
-		return wd.cityName == data.cityName;
+		return wd.cityName == data.cityName &&
+			wd.condition == data.condition &&
+			wd.temperature == data.temperature &&
+			wd.humidity == data.humidity &&
+			wd.windSpeed == data.windSpeed;
 		});
 
 	// If it's not in the list, add it
@@ -122,6 +132,7 @@ void removeFromFavorates(std::vector<WeatherData>& favorate, const WeatherData& 
 	// Find the weather data in the favorites list by matching the whole WeatherData object
 	auto it = std::remove_if(favorate.begin(), favorate.end(), [&data](const WeatherData& wd) {
 		return wd.cityName == data.cityName &&
+			wd.condition == data.condition &&
 			wd.temperature == data.temperature &&
 			wd.humidity == data.humidity &&
 			wd.windSpeed == data.windSpeed;
@@ -168,6 +179,12 @@ int main(int, char**)
 	ImGui_ImplWin32_Init(hwnd);
 	ImGui_ImplDX9_Init(g_pd3dDevice);
 
+	//Load Font
+	ImFont* defaultFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 15.0f);
+	ImFont* smallFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 20.0f);
+	ImFont* mediumFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 32.0f);
+	ImFont* largeFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 70.0f);
+
 	// Main loop
 	bool done = false;
 	while (!done)
@@ -207,30 +224,19 @@ int main(int, char**)
 			ResetDevice();
 		}
 
-		// Start the Dear ImGui frame
+
 		ImGui_ImplDX9_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		// UI code
+		// Calculate the size of the window
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		float windowWidth = windowSize.x;
+		float windowHeight = windowSize.y;
 
-		float windowHeight = ImGui::GetWindowSize().y;  // Get the height of the window
-		float windowWidth = ImGui::GetWindowSize().x;   //Get the width of the window
-		float widgetHeight = ImGui::GetFrameHeight();  // Get the height of a standard ImGui widget
-		float widgetWidth = ImGui::CalcTextSize("Weather Application").x + ImGui::GetStyle().FramePadding.x * 2;
-
-
-		ImVec2 windowSize = ImGui::GetWindowSize();  // Get the current window size
-
-		// Calculate widget positions based on window size
-		float buttonX = windowSize.x * 0.5f - 75;  // Center horizontally (assuming a button width of 150 pixels)
-		float buttonY = windowSize.y * 0.7f;
-
-
-		//ImGui::SetNextWindowPos(ImVec2(windowHeight * 0.5f, windowWidth * 0.5f));
-		ImGui::SetNextWindowPos(ImVec2(windowHeight / 2, windowWidth / 2));
+		// Begin the window
+		ImGui::SetNextWindowPos(ImVec2(450, 100));
 		ImGui::SetNextWindowSize(ImVec2(347, 492));
-
 		ImGui::Begin("Weather Application");
 
 		// Input field for entering a city name
@@ -249,44 +255,46 @@ int main(int, char**)
 			std::thread(FetchWeatherData, city).detach();  // Start fetching in a new thread and detach it
 		}
 
+		// Centering function with Y position adjustment
+		auto CenterTextAtY = [&](const std::string& text, ImFont* font, float yPos) {
+			ImGui::PushFont(font);
+			float textWidth = ImGui::CalcTextSize(text.c_str()).x;
+			float textX = (windowWidth - textWidth) / 2.5f;
+			ImGui::SetCursorPos(ImVec2(textX, yPos));
+			ImGui::Text("%s", text.c_str());
+			ImGui::PopFont();
+			};
 
 		// Display the city name
 		if (!cityWeatherInfo.empty()) {
-			ImGui::SetCursorPos(ImVec2(100, 160));  // Position for the city name below the temperature
-			ImGui::SetWindowFontScale(2.0f);  // Scale up the city name
-			ImGui::Text("%s", cityWeatherInfo[0].c_str());
-			ImGui::SetWindowFontScale(1.0f);  // Reset the font scale
+			CenterTextAtY(cityWeatherInfo[0], mediumFont, 190.0f);  
+		}
 
+		// Display weather condition
+		if (cityWeatherInfo.size() >= 2) {
+			CenterTextAtY(cityWeatherInfo[1], smallFont, 160.0f);  
 		}
 
 		// Display the temperature
-		if (!cityWeatherInfo.empty()) {
-			ImGui::SetCursorPos(ImVec2(100, 100));  // Position for the temperature
-			ImGui::SetWindowFontScale(3.0f);  // Make the temperature larger
-			ImGui::Text("%s", cityWeatherInfo[1].c_str());
-			ImGui::SetWindowFontScale(1.0f);  // Reset the font scale
+		if (cityWeatherInfo.size() >= 3) {
+			CenterTextAtY(cityWeatherInfo[2], largeFont, 100.0f);  
+		}
 
-
-
-
-			// Display humidity and wind speed on the same line
-			if (cityWeatherInfo.size() >= 4) {
-				ImGui::SetCursorPos(ImVec2(50, 220));  // Position for the humidity
-				ImGui::Text("%s", cityWeatherInfo[2].c_str());
-
-				ImGui::SameLine(0.0f, 50.0f);  // Add some spacing between humidity and wind speed
-				ImGui::Text("%s", cityWeatherInfo[3].c_str());
-			}
-
-
+		// Display humidity and wind speed on the same line
+		if (cityWeatherInfo.size() >= 4) {
+			ImGui::PushFont(smallFont);
+			ImGui::SetCursorPos(ImVec2(25, 250));  // Position for the humidity
+			ImGui::Text("%s", cityWeatherInfo[3].c_str());
+			ImGui::SameLine(0.0f, 10.0f);  // Add some spacing between humidity and wind speed
+			ImGui::Text("%s", cityWeatherInfo[4].c_str());
+			ImGui::PopFont();
 		}
 
 		if (fetchingWeather) {
-			ImGui::SetCursorPos(ImVec2(100, 280));  // Adjust position for "Fetching weather data..."
-			ImGui::Text("Fetching weather data...");
+			CenterTextAtY("Fetching weather data...", smallFont, 280.0f); 
 		}
 
-		// Favorite Button (bottom-left corner)
+		// Favorite Button 
 		ImGui::SetCursorPos(ImVec2(0, 450));
 		if (ImGui::Button("Favorite", ImVec2(91, 34))) {
 			if (data.isFavorate) {
@@ -299,7 +307,7 @@ int main(int, char**)
 			}
 		}
 
-		// Favorites List Button (bottom-right corner)
+		// Favorites List Button 
 		ImGui::SetCursorPos(ImVec2(237, 450));
 		if (ImGui::Button("Favorites List", ImVec2(110, 34))) {
 			showFavoritesWindow = true;  // Toggle the display of the favorites window
@@ -307,7 +315,9 @@ int main(int, char**)
 
 		ImGui::End();
 
+
 		if (showFavoritesWindow) {
+			ImGui::SetNextWindowPos(ImVec2(797, 100));
 			ImGui::Begin("Favorites", &showFavoritesWindow);  // Window will automatically close if the 'X' is clicked
 
 			ImGui::Text("Favorite Weather Data:");
@@ -318,8 +328,9 @@ int main(int, char**)
 			else {
 				for (const auto& data : favorates) {
 					ImGui::Text("City: %s", data.cityName.c_str());
-					ImGui::Text("Temperature: %.2f C", data.temperature);
-					ImGui::Text("Humidity: %.2f %%", data.humidity);
+					ImGui::Text("Temperature: %dc", data.temperature);
+					ImGui::Text("Condition: %s", data.condition.c_str());
+					ImGui::Text("Humidity: %d%", data.humidity);
 					ImGui::Text("Wind Speed: %.2f m/s", data.windSpeed);
 
 					ImGui::SameLine();  // Position the remove button on the same line as the last text
@@ -333,10 +344,6 @@ int main(int, char**)
 
 			ImGui::End();
 		}
-
-
-
-
 
 		// Rendering
 		ImGui::EndFrame();
@@ -356,7 +363,6 @@ int main(int, char**)
 			g_DeviceLost = true;
 	}
 
-
 	// Cleanup
 	ImGui_ImplDX9_Shutdown();
 	ImGui_ImplWin32_Shutdown();
@@ -369,16 +375,7 @@ int main(int, char**)
 	return 0;
 }
 
-
-
-
-
-
-
-
-
 // Helper functions
-
 bool CreateDeviceD3D(HWND hWnd)
 {
 	if ((g_pD3D = Direct3DCreate9(D3D_SDK_VERSION)) == nullptr)

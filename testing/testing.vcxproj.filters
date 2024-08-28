@@ -90,4 +90,8 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Font Include="vendor\Fonts\Mont-ExtraLightDEMO.otf" />
+    <Font Include="vendor\Fonts\MADE TOMMY Black_PERSONAL USE.otf" />
+  </ItemGroup>
 </Project>
