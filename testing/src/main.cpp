@@ -4,20 +4,23 @@
 #include "imgui.h"
 #include "imgui_impl_dx9.h"
 #include "imgui_impl_win32.h"
-#include <d3d9.h>
-#include <tchar.h>
-#include <string>
-#include <thread>
 #include <atomic>
+#include <d3d9.h>
 #include <mutex>
-#include "httplib.h"
 #include <nlohmann/json.hpp>
+#include <string>
+#include <tchar.h>
+#include <thread>
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 
 struct WeatherData {
     std::string cityName;
     double temperature;
     double humidity;
     double windSpeed;
+    bool isFavorate = FALSE;
 };
 
 // Data
@@ -33,6 +36,10 @@ std::string city = "Enter City Name...";
 std::string weatherInfo = "Weather data will appear here.";
 std::mutex weatherMutex;
 std::atomic<bool> fetchingWeather{ false };
+std::vector<WeatherData> favorates;
+WeatherData data;
+std::vector<std::string> cityWeatherInfo;
+bool showFavoritesWindow = FALSE;
 
 // Forward declarations of helper functions
 bool CreateDeviceD3D(HWND hWnd);
@@ -41,31 +48,53 @@ void ResetDevice();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 void FetchWeatherData(const std::string& city) {
+
+    
+    cityWeatherInfo.clear();
+
     httplib::Client client("http://api.openweathermap.org");
     std::string apiKey = "1b47309fcd7ed75fb6306aa00625578f"; // Replace with your actual OpenWeather API key
     std::string url = "/data/2.5/weather?q=" + city + "&appid=" + apiKey + "&units=metric";
 
     auto res = client.Get(url.c_str());
+    
     if (res && res->status == 200) {
         auto jsonData = json::parse(res->body);
 
-        WeatherData data;
+        
         data.cityName = jsonData["name"];
         data.temperature = jsonData["main"]["temp"];
         data.humidity = jsonData["main"]["humidity"];
         data.windSpeed = jsonData["wind"]["speed"];
 
         std::ostringstream oss;
-        oss << std::fixed << std::setprecision(2);  // Set the precision to 2 decimal places
+       // oss << std::fixed << std::setprecision(2);  // Set the precision to 2 decimal places
 
-        oss << "City: " << data.cityName << "\n";
-        oss << "Temp: " << data.temperature << "C\n";
-        oss << "Humidity: " << data.humidity << "%\n";
+        oss << data.cityName;
+        cityWeatherInfo.push_back(oss.str());
+        oss.str("");  // Clear the stream content
+        oss.clear();  // Clear any error flags
+
+        
+        oss << data.temperature << "C";
+        cityWeatherInfo.push_back(oss.str());
+        oss.str("");  
+        oss.clear();  
+
+        
+        oss << "Humadity: " << data.humidity  << "%";
+        cityWeatherInfo.push_back(oss.str());
+        oss.str("");  
+        oss.clear();  
+
+        
         oss << "Wind Speed: " << data.windSpeed << " m/s";
+        cityWeatherInfo.push_back(oss.str());
+        oss.str("");  
+        oss.clear();  
 
+        
         std::lock_guard<std::mutex> guard(weatherMutex);
-        weatherInfo = oss.str();  // Assign the formatted string to weatherInfo
-
     }
     else {
         std::lock_guard<std::mutex> guard(weatherMutex);
@@ -73,6 +102,35 @@ void FetchWeatherData(const std::string& city) {
     }
 
     fetchingWeather = false;  // Mark fetching as complete
+    
+    
+}
+
+void addToFavorates(std::vector<WeatherData>& favorate, const WeatherData& data) {
+    // Check if the weather data is already in the favorites list
+    auto it = std::find_if(favorate.begin(), favorate.end(), [&data](const WeatherData& wd) {
+        return wd.cityName == data.cityName;
+        });
+
+    // If it's not in the list, add it
+    if (it == favorate.end()) {
+        favorate.push_back(data);
+    }
+}
+
+void removeFromFavorates(std::vector<WeatherData>& favorate, const WeatherData& data) {
+    // Find the weather data in the favorites list by matching the whole WeatherData object
+    auto it = std::remove_if(favorate.begin(), favorate.end(), [&data](const WeatherData& wd) {
+        return wd.cityName == data.cityName &&
+               wd.temperature == data.temperature &&
+               wd.humidity == data.humidity &&
+               wd.windSpeed == data.windSpeed;
+    });
+
+    // If found, remove it from the vector
+    if (it != favorate.end()) {
+        favorate.erase(it, favorate.end());
+    }
 }
 
 
@@ -171,8 +229,10 @@ int main(int, char**)
 
         //ImGui::SetNextWindowPos(ImVec2(windowHeight * 0.5f, windowWidth * 0.5f));
         ImGui::SetNextWindowPos(ImVec2(windowHeight/2, windowWidth/2));
-        ImGui::SetNextWindowSize(ImVec2(275, 500));
+        ImGui::SetNextWindowSize(ImVec2(347, 492));
+
         
+        /*
         ImGui::Begin("Weather Application");
 
 
@@ -195,17 +255,16 @@ int main(int, char**)
 
 
         // Input field for entering a city name
-        ImGui::SetNextItemWidth(widgetWidth);
-        ImGui::SetCursorPos(ImVec2(widgetWidth/4,20));
+        ImGui::SetCursorPos(ImVec2(12,20));
         char cityBuffer[128];
         strncpy_s(cityBuffer, city.c_str(), sizeof(cityBuffer));
-
-        if (ImGui::InputText("##City", cityBuffer, sizeof(cityBuffer))) {
+        
+        if (ImGui::InputTextMultiline("##multiline", cityBuffer, sizeof(cityBuffer), ImVec2(256, 24))) {
             city = cityBuffer;
         }
 
 
-
+        //ImGui::InputText("##City", cityBuffer, sizeof(cityBuffer))
 
 
 
@@ -223,8 +282,9 @@ int main(int, char**)
 
 
         // Fetch Weather Button
-        ImGui::SetCursorPos(ImVec2(widgetWidth+40, 20));
-        if (ImGui::Button("Search") && !fetchingWeather)
+        ImGui::SetCursorPos(ImVec2( 280, 20));
+        WeatherData favorateData;
+        if (ImGui::Button("Search", ImVec2(45, 24)) && !fetchingWeather)
         {
             fetchingWeather = true;
             std::thread(FetchWeatherData, city).detach();  // Start fetching in a new thread and detach it
@@ -241,19 +301,30 @@ int main(int, char**)
 
 
 
+        //std::vector<std::string> tokens = tokenizeString(weatherInfo);
+        
 
 
-        ImGui::SetCursorPos(ImVec2(widgetWidth /2, 60));
+        ImGui::SetCursorPos(ImVec2(widgetWidth , 60));
          //Display the weather information
         {
             std::lock_guard<std::mutex> lock(weatherMutex);
-            ImGui::Text("%s", weatherInfo.c_str());
+            if (!cityWeatherInfo.empty()) {
+                ImGui::SetWindowFontScale(1);
+                ImGui::Text("%s", cityWeatherInfo[1].c_str());
+                ImGui::SetWindowFontScale(1);
+            }
+            else {
+                ImGui::Text("No Weather data yet!");
+            }
         }
 
         if (fetchingWeather) {
             ImGui::Text("Fetching weather data...");
         }
 
+        
+        
 
 
 
@@ -261,21 +332,181 @@ int main(int, char**)
 
 
 
+        
+        
+        
+       
+        ImGui::SetCursorPos(ImVec2(0, 450));
+        if (ImGui::Button("Favorite", ImVec2(91, 34))) {
+            if (data.isFavorate == true) {
+               
+                data.isFavorate = false;
+                removeFromFavorates(favorates,data);
+            }
+            else {
+                data.isFavorate = true;
+                addToFavorates(favorates, data);
+            }
+        }
+       
+        
+        
+
+        
 
 
+        ImGui::SetCursorPos(ImVec2(237, 450));
+        if (ImGui::Button("Favorites List", ImVec2(110, 34))) {
+           
+            showFavoritesWindow = true;  // Toggle the display of the favorites window
+        }
 
-        ImGui::SetCursorPos(ImVec2(10,470));
-        ImGui::Button("Favorite");
 
-        std::cout << "hello";
-
-
-        ImGui::SetCursorPos(ImVec2(widgetWidth + 20, 470));
-        ImGui::Button("Favorites List");
-
-        ImGui::Button("Favorites List");
 
         ImGui::End();
+
+
+
+
+        if (showFavoritesWindow) {
+           
+            ImGui::Begin("Favorites", &showFavoritesWindow);  // Window will automatically close if the 'X' is clicked
+
+            ImGui::Text("Favorite Weather Data:");
+
+            if (favorates.empty()) {
+                ImGui::Text("No favorites yet.");
+            }
+            else {
+                for (const auto& data : favorates) {
+                    ImGui::Text("City: %s", data.cityName.c_str());
+                    ImGui::Text("Temperature: %.2f C", data.temperature);
+                    ImGui::Text("Humidity: %.2f %%", data.humidity);
+                    ImGui::Text("Wind Speed: %.2f m/s", data.windSpeed);
+                    
+
+                    ImGui::SameLine();  // Position the remove button on the same line as the last text
+                    if (ImGui::Button(("X##" + data.cityName).c_str())) {
+                        removeFromFavorates(favorates, data);  // Remove the entry and update the iterator
+                    }
+
+                    ImGui::Separator();  // Separate each favorite entry
+                }
+
+                
+            }
+            
+
+            ImGui::End();
+        }
+        
+        */
+ImGui::Begin("Weather Application");
+
+// Input field for entering a city name
+ImGui::SetCursorPos(ImVec2(12, 20));
+char cityBuffer[128];
+strncpy_s(cityBuffer, city.c_str(), sizeof(cityBuffer));
+
+if (ImGui::InputTextMultiline("##multiline", cityBuffer, sizeof(cityBuffer), ImVec2(256, 24))) {
+    city = cityBuffer;
+}
+
+// Fetch Weather Button (right-aligned)
+ImGui::SetCursorPos(ImVec2(280, 20));
+if (ImGui::Button("Search", ImVec2(48, 24)) && !fetchingWeather) {
+    fetchingWeather = true;
+    std::thread(FetchWeatherData, city).detach();  // Start fetching in a new thread and detach it
+}
+
+
+// Display the city name
+if (!cityWeatherInfo.empty()) {
+    ImGui::SetCursorPos(ImVec2(100, 160));  // Position for the city name below the temperature
+    ImGui::SetWindowFontScale(2.0f);  // Scale up the city name
+    ImGui::Text("%s", cityWeatherInfo[0].c_str());
+    ImGui::SetWindowFontScale(1.0f);  // Reset the font scale
+    
+}
+
+// Display the temperature
+if (!cityWeatherInfo.empty()) {
+    ImGui::SetCursorPos(ImVec2(100, 100));  // Position for the temperature
+    ImGui::SetWindowFontScale(3.0f);  // Make the temperature larger
+    ImGui::Text("%s", cityWeatherInfo[1].c_str());
+    ImGui::SetWindowFontScale(1.0f);  // Reset the font scale
+
+
+
+
+    // Display humidity and wind speed on the same line
+    if (cityWeatherInfo.size() >= 4) {
+        ImGui::SetCursorPos(ImVec2(50, 220));  // Position for the humidity
+        ImGui::Text("%s", cityWeatherInfo[2].c_str());
+
+        ImGui::SameLine(0.0f, 50.0f);  // Add some spacing between humidity and wind speed
+        ImGui::Text("%s", cityWeatherInfo[3].c_str());
+    }
+
+    
+}
+
+if (fetchingWeather) {
+    ImGui::SetCursorPos(ImVec2(100, 280));  // Adjust position for "Fetching weather data..."
+    ImGui::Text("Fetching weather data...");
+}
+
+// Favorite Button (bottom-left corner)
+ImGui::SetCursorPos(ImVec2(0, 450));
+if (ImGui::Button("Favorite", ImVec2(91, 34))) {
+    if (data.isFavorate) {
+        data.isFavorate = false;
+        removeFromFavorates(favorates, data);
+    }
+    else {
+        data.isFavorate = true;
+        addToFavorates(favorates, data);
+    }
+}
+
+// Favorites List Button (bottom-right corner)
+ImGui::SetCursorPos(ImVec2(237, 450));
+if (ImGui::Button("Favorites List", ImVec2(110, 34))) {
+    showFavoritesWindow = true;  // Toggle the display of the favorites window
+}
+
+ImGui::End();
+
+if (showFavoritesWindow) {
+    ImGui::Begin("Favorites", &showFavoritesWindow);  // Window will automatically close if the 'X' is clicked
+
+    ImGui::Text("Favorite Weather Data:");
+
+    if (favorates.empty()) {
+        ImGui::Text("No favorites yet.");
+    }
+    else {
+        for (const auto& data : favorates) {
+            ImGui::Text("City: %s", data.cityName.c_str());
+            ImGui::Text("Temperature: %.2f C", data.temperature);
+            ImGui::Text("Humidity: %.2f %%", data.humidity);
+            ImGui::Text("Wind Speed: %.2f m/s", data.windSpeed);
+
+            ImGui::SameLine();  // Position the remove button on the same line as the last text
+            if (ImGui::Button(("X##" + data.cityName).c_str())) {
+                removeFromFavorates(favorates, data);  // Remove the entry and update the iterator
+            }
+
+            ImGui::Separator();  // Separate each favorite entry
+        }
+    }
+
+    ImGui::End();
+}
+        
+
+        
+
 
         // Rendering
         ImGui::EndFrame();
@@ -295,6 +526,7 @@ int main(int, char**)
             g_DeviceLost = true;
     }
 
+
     // Cleanup
     ImGui_ImplDX9_Shutdown();
     ImGui_ImplWin32_Shutdown();
@@ -306,6 +538,14 @@ int main(int, char**)
 
     return 0;
 }
+
+
+
+
+
+
+
+
 
 // Helper functions
 
