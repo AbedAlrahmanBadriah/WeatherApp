@@ -142,7 +142,6 @@
     <ClCompile Include="vendor\imgui-master\imgui_widgets.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\GuiMain.h" />
     <ClInclude Include="vendor\HttpSrc\httplib.h" />
     <ClInclude Include="vendor\HttpSrc\nlohmann\json.hpp" />
     <ClInclude Include="vendor\imgui-master\backends\imgui_impl_dx9.h" />

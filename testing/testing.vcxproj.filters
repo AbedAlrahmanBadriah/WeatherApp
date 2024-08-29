@@ -86,9 +86,6 @@
     <ClInclude Include="vendor\HttpSrc\nlohmann\json.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\GuiMain.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Font Include="vendor\Fonts\Mont-ExtraLightDEMO.otf" />

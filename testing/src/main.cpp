@@ -34,7 +34,6 @@ using json = nlohmann::json;
 // Shared data for the weather fetching thread
 std::string city = "Enter City Name...";
 std::string weatherInfo = "Weather data will appear here.";
-std::mutex weatherMutex;
 std::atomic<bool> fetchingWeather{ false };
 std::vector<WeatherData> favorates;
 WeatherData data;
@@ -100,11 +99,10 @@ void FetchWeatherData(const std::string& city) {
 		oss.clear();
 
 
-		std::lock_guard<std::mutex> guard(weatherMutex);
 	}
 	else {
-		std::lock_guard<std::mutex> guard(weatherMutex);
 		weatherInfo = "Failed to fetch data for " + city;
+		cityWeatherInfo.push_back(weatherInfo.c_str());
 	}
 
 	fetchingWeather = false;  // Mark fetching as complete
@@ -180,10 +178,10 @@ int main(int, char**)
 	ImGui_ImplDX9_Init(g_pd3dDevice);
 
 	//Load Font
-	ImFont* defaultFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 15.0f);
-	ImFont* smallFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 20.0f);
-	ImFont* mediumFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 32.0f);
-	ImFont* largeFont = io.Fonts->AddFontFromFileTTF("C:\\Users\\Mohammad Othman\\source\\repos\\testing\\testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 70.0f);
+	ImFont* defaultFont = io.Fonts->AddFontFromFileTTF("../testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 15.0f);
+	ImFont* smallFont = io.Fonts->AddFontFromFileTTF("../testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 20.0f);
+	ImFont* mediumFont = io.Fonts->AddFontFromFileTTF("../testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 32.0f);
+	ImFont* largeFont = io.Fonts->AddFontFromFileTTF("../testing\\vendor\\Fonts\\MADE TOMMY Black_PERSONAL USE.otf", 70.0f);
 
 	// Main loop
 	bool done = false;
@@ -326,11 +324,12 @@ int main(int, char**)
 				ImGui::Text("No favorites yet.");
 			}
 			else {
+				char c = '%';
 				for (const auto& data : favorates) {
 					ImGui::Text("City: %s", data.cityName.c_str());
 					ImGui::Text("Temperature: %dc", data.temperature);
 					ImGui::Text("Condition: %s", data.condition.c_str());
-					ImGui::Text("Humidity: %d%", data.humidity);
+					ImGui::Text("Humidity: %d%c", data.humidity, c);
 					ImGui::Text("Wind Speed: %.2f m/s", data.windSpeed);
 
 					ImGui::SameLine();  // Position the remove button on the same line as the last text
